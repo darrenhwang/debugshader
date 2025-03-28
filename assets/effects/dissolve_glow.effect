@@ -1,0 +1,146 @@
+CCEffect %{
+  techniques:
+  - name: transparent
+    passes:
+    - vert: unlit-vs:vert
+      frag: unlit-fs:frag
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+      rasterizerState:
+        cullMode: none
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
+      properties:
+        mainTexture: { value: white }
+        threshold: { value: 0.5, editor: { range: [0, 1.0], slide: true } }
+        edgeWidth: { value: 0.1, editor: { range: [0, 0.5], slide: true } }
+        edgeR: { value: 1.0, editor: { range: [0, 1.0], slide: true } }
+        edgeG: { value: 0.5, editor: { range: [0, 1.0], slide: true } }
+        edgeB: { value: 0.0, editor: { range: [0, 1.0], slide: true } }
+        flowX: { value: 1.0, editor: { range: [-2.0, 2.0], slide: true } }
+        flowY: { value: 0.0, editor: { range: [-2.0, 2.0], slide: true } }
+        strength: { value: 1.0, editor: { range: [0, 2.0], slide: true } }
+        innerR: { value: 0.0, editor: { range: [0, 1.0], slide: true } }
+        innerG: { value: 0.0, editor: { range: [0, 1.0], slide: true } }
+        innerB: { value: 1.0, editor: { range: [0, 1.0], slide: true } }
+        distortStrength: { value: 0.1, editor: { range: [0, 0.5], slide: true } }
+        distortScale: { value: 10.0, editor: { range: [1, 50.0], slide: true } }
+        noiseScale: { value: 1.0, editor: { range: [0.1, 10.0], slide: true } }
+}%
+
+CCProgram unlit-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  #include <builtin/uniforms/cc-local>
+
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  in vec4 a_color;
+
+  out vec2 v_uv0;
+  out vec4 v_color;
+
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matWorld * pos;
+    pos = cc_matViewProj * pos;
+    v_uv0 = a_texCoord;
+    v_color = a_color;
+    return pos;
+  }
+}%
+
+CCProgram unlit-fs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+
+  in vec2 v_uv0;
+  in vec4 v_color;
+
+  uniform sampler2D mainTexture;
+  
+  uniform Constant {
+    float threshold;
+    float edgeWidth;
+    float edgeR;
+    float edgeG;
+    float edgeB;
+    float flowX;
+    float flowY;
+    float strength;
+    float innerR;
+    float innerG;
+    float innerB;
+    float distortStrength;
+    float distortScale;
+    float noiseScale;
+  };
+
+  float rand(vec2 co) {
+    vec2 flow = vec2(flowX, flowY);
+    vec2 offset = flow * cc_time.x * 0.1;
+    return fract(sin(dot(co.xy + offset, vec2(12.9898,78.233))) * 43758.5453);
+  }
+
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    
+    float a = rand(i);
+    float b = rand(i + vec2(1.0, 0.0));
+    float c = rand(i + vec2(0.0, 1.0));
+    float d = rand(i + vec2(1.0, 1.0));
+    
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+
+  vec2 distort(vec2 uv) {
+    float time = cc_time.x * 0.5;
+    vec2 noiseUV = uv * distortScale;
+    vec2 noiseOffset = vec2(
+      noise(noiseUV + vec2(time, 0.0)),
+      noise(noiseUV + vec2(0.0, time))
+    ) * 2.0 - 1.0;
+    return uv + noiseOffset * distortStrength;
+  }
+
+  vec4 frag () {
+    // UV扭曲
+    vec2 distortedUV = distort(v_uv0);
+    
+    // 多重噪声叠加
+    float noise1 = noise(distortedUV * noiseScale);
+    float noise2 = noise(distortedUV * noiseScale * 2.0) * 0.5;
+    float noise3 = noise(distortedUV * noiseScale * 4.0) * 0.25;
+    float combinedNoise = (noise1 + noise2 + noise3) / 1.75;
+    
+    vec4 baseColor = texture(mainTexture, distortedUV);
+    float noise = combinedNoise * strength;
+    
+    // 计算边缘和内部区域
+    float edge = smoothstep(threshold - edgeWidth, threshold, noise);
+    edge *= smoothstep(threshold + edgeWidth, threshold, noise);
+    
+    float inner = smoothstep(threshold - edgeWidth * 2.0, threshold - edgeWidth, noise);
+    
+    // 如果完全溶解则丢弃片段
+    if (noise < threshold - edgeWidth * 2.0) {
+      discard;
+    }
+    
+    // 混合基础颜色、边缘颜色和内部颜色
+    vec3 edgeColor = vec3(edgeR, edgeG, edgeB);
+    vec3 innerColor = vec3(innerR, innerG, innerB);
+    
+    vec3 finalColor = baseColor.rgb;
+    finalColor = mix(finalColor, innerColor, inner);
+    finalColor = mix(finalColor, edgeColor, edge);
+    
+    return vec4(finalColor, baseColor.a);
+  }
+}% 

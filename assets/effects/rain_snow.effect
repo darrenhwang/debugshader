@@ -1,0 +1,130 @@
+CCEffect %{
+  techniques:
+  - name: transparent
+    passes:
+    - vert: unlit-vs:vert
+      frag: unlit-fs:frag
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+      rasterizerState:
+        cullMode: none
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
+      properties:
+        mainTexture: { value: white }
+        rainTexture: { value: white }  # 雨滴纹理
+        snowTexture: { value: white }  # 雪花纹理
+        rainSpeed: { value: 1.0, editor: { range: [0, 5.0], slide: true } }  # 雨滴下落速度
+        snowSpeed: { value: 0.5, editor: { range: [0, 3.0], slide: true } }  # 雪花下落速度
+        rainScale: { value: 1.0, editor: { range: [0.1, 10.0], slide: true } }  # 雨滴大小
+        snowScale: { value: 1.0, editor: { range: [0.1, 10.0], slide: true } }  # 雪花大小
+        rainIntensity: { value: 0.5, editor: { range: [0, 1.0], slide: true } }  # 雨滴密度
+        snowIntensity: { value: 0.5, editor: { range: [0, 1.0], slide: true } }  # 雪花密度
+        windStrength: { value: 0.0, editor: { range: [-1.0, 1.0], slide: true } }  # 风力强度
+        windDirection: { value: 0.0, editor: { range: [0, 360], slide: true } }  # 风向角度
+}%
+
+CCProgram unlit-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  #include <builtin/uniforms/cc-local>
+
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  in vec4 a_color;
+
+  out vec2 v_uv0;
+  out vec4 v_color;
+
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matWorld * pos;
+    pos = cc_matViewProj * pos;
+    v_uv0 = a_texCoord;
+    v_color = a_color;
+    return pos;
+  }
+}%
+
+CCProgram unlit-fs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+
+  in vec2 v_uv0;
+  in vec4 v_color;
+
+  uniform sampler2D mainTexture;
+  uniform sampler2D rainTexture;
+  uniform sampler2D snowTexture;
+  
+  uniform Constant {
+    float rainSpeed;
+    float snowSpeed;
+    float rainScale;
+    float snowScale;
+    float rainIntensity;
+    float snowIntensity;
+    float windStrength;
+    float windDirection;
+  };
+
+  // 随机函数
+  float rand(vec2 co) {
+    return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453);
+  }
+
+  // 计算风向偏移
+  vec2 windOffset(vec2 uv, float speed, float scale) {
+    float angle = windDirection * 3.14159 / 180.0;
+    vec2 wind = vec2(cos(angle), sin(angle)) * windStrength;
+    return uv + wind * speed * cc_time.x * scale;
+  }
+
+  // 雨滴效果
+  float rain(vec2 uv) {
+    vec2 rainUV = windOffset(uv, rainSpeed, rainScale);
+    rainUV.y += cc_time.x * rainSpeed;
+    rainUV *= rainScale;
+    
+    float rainNoise = rand(rainUV);
+    float rainMask = texture(rainTexture, rainUV).r;
+    
+    return rainMask * rainNoise * rainIntensity;
+  }
+
+  // 雪花效果
+  float snow(vec2 uv) {
+    vec2 snowUV = windOffset(uv, snowSpeed, snowScale);
+    snowUV.y += cc_time.x * snowSpeed;
+    snowUV *= snowScale;
+    
+    float snowNoise = rand(snowUV);
+    float snowMask = texture(snowTexture, snowUV).r;
+    
+    return snowMask * snowNoise * snowIntensity;
+  }
+
+  vec4 frag () {
+    vec4 baseColor = texture(mainTexture, v_uv0);
+    
+    // 计算雨雪效果
+    float rainEffect = rain(v_uv0);
+    float snowEffect = snow(v_uv0);
+    
+    // 混合效果
+    vec3 finalColor = baseColor.rgb;
+    finalColor = mix(finalColor, vec3(0.7, 0.7, 0.7), rainEffect);  // 雨滴颜色
+    finalColor = mix(finalColor, vec3(1.0, 1.0, 1.0), snowEffect);  // 雪花颜色
+    
+    // 调整透明度
+    float alpha = baseColor.a;
+    alpha = mix(alpha, 0.8, rainEffect);  // 雨滴略微降低透明度
+    alpha = mix(alpha, 0.9, snowEffect);  // 雪花略微降低透明度
+    
+    return vec4(finalColor, alpha);
+  }
+}% 

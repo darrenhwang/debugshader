@@ -1,0 +1,106 @@
+CCEffect %{
+  techniques:
+  - name: transparent
+    passes:
+    - vert: unlit-vs:vert
+      frag: unlit-fs:frag
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+      rasterizerState:
+        cullMode: none
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
+      properties:
+        mainTexture: { value: white }
+        nextTexture: { value: white }  # 下一个场景的纹理
+        progress: { value: 0.0, editor: { range: [0, 1.0], slide: true } }  # 转场进度
+        blindsCount: { value: 10.0, editor: { range: [1, 50], step: 1 } }  # 百叶窗数量
+        direction: { value: 0.0, editor: { range: [0, 360], step: 1 } }  # 百叶窗方向
+        edgeWidth: { value: 0.1, editor: { range: [0, 0.5], slide: true } }  # 边缘宽度
+        edgeColor: { value: [1.0, 1.0, 1.0], editor: { type: color } }  # 边缘颜色
+}%
+
+CCProgram unlit-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  #include <builtin/uniforms/cc-local>
+
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  in vec4 a_color;
+
+  out vec2 v_uv0;
+  out vec4 v_color;
+
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matWorld * pos;
+    pos = cc_matViewProj * pos;
+    v_uv0 = a_texCoord;
+    v_color = a_color;
+    return pos;
+  }
+}%
+
+CCProgram unlit-fs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+
+  in vec2 v_uv0;
+  in vec4 v_color;
+
+  uniform sampler2D mainTexture;
+  uniform sampler2D nextTexture;
+  
+  uniform Constant {
+    float progress;
+    float blindsCount;
+    float direction;
+    float edgeWidth;
+    vec3 edgeColor;
+  };
+
+  // 计算旋转后的UV坐标
+  vec2 rotateUV(vec2 uv, float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+    vec2 center = vec2(0.5, 0.5);
+    return center + vec2(
+      c * (uv.x - center.x) - s * (uv.y - center.y),
+      s * (uv.x - center.x) + c * (uv.y - center.y)
+    );
+  }
+
+  vec4 frag () {
+    // 将UV坐标旋转到指定方向
+    float angle = direction * 3.14159 / 180.0;
+    vec2 rotatedUV = rotateUV(v_uv0, angle);
+    
+    // 计算百叶窗遮罩
+    float blindWidth = 1.0 / blindsCount;
+    float blindIndex = floor(rotatedUV.y / blindWidth);
+    float blindProgress = (progress * blindsCount - blindIndex) * blindWidth;
+    float mask = smoothstep(0.0, 1.0, blindProgress);
+    
+    // 计算边缘
+    float edge = smoothstep(0.0, edgeWidth, blindProgress);
+    edge *= smoothstep(1.0, 1.0 - edgeWidth, blindProgress);
+    
+    // 混合两个场景
+    vec4 currentScene = texture(mainTexture, v_uv0);
+    vec4 nextScene = texture(nextTexture, v_uv0);
+    
+    // 混合颜色
+    vec3 finalColor = mix(currentScene.rgb, nextScene.rgb, mask);
+    finalColor = mix(finalColor, edgeColor, edge);
+    
+    // 计算透明度
+    float alpha = mix(currentScene.a, nextScene.a, mask);
+    
+    return vec4(finalColor, alpha);
+  }
+}% 

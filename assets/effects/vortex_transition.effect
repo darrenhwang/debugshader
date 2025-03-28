@@ -1,0 +1,92 @@
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: unlit-vs:vert
+      frag: unlit-fs:frag
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendDstAlpha: one_minus_src_alpha
+      rasterizerState:
+        cullMode: none
+      properties:
+        mainTexture:    { value: white }
+        nextTexture:    { value: white }
+        progress:       { value: 0.0, editor: { type: vec2 } }
+        centerX:        { value: 0.5, editor: { type: vec2 } }
+        centerY:        { value: 0.5, editor: { type: vec2 } }
+        rotationSpeed:  { value: 1.0, editor: { type: vec2 } }
+        edgeWidth:      { value: 0.1, editor: { type: vec2 } }
+        edgeColor:      { value: [1.0, 1.0, 1.0], editor: { type: color } }
+}%
+
+CCProgram unlit-vs %{
+  precision highp float;
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  in vec4 a_color;
+
+  out vec2 v_uv0;
+  out vec4 v_color;
+
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matViewProj * cc_matWorld * pos;
+    v_uv0 = a_texCoord;
+    v_color = a_color;
+    return pos;
+  }
+}%
+
+CCProgram unlit-fs %{
+  precision highp float;
+  #include <cc-global>
+  #include <common>
+
+  in vec2 v_uv0;
+  in vec4 v_color;
+
+  uniform sampler2D mainTexture;
+  uniform sampler2D nextTexture;
+  uniform Constant {
+    float progress;
+    float centerX;
+    float centerY;
+    float rotationSpeed;
+    float edgeWidth;
+    vec3 edgeColor;
+  };
+
+  vec4 frag () {
+    // 计算到中心的距离和角度
+    vec2 center = vec2(centerX, centerY);
+    vec2 delta = v_uv0 - center;
+    float dist = length(delta);
+    float angle = atan(delta.y, delta.x);
+    
+    // 计算漩涡效果
+    float rotation = angle + dist * rotationSpeed;
+    float mask = step(progress, rotation / (2.0 * 3.14159));
+    
+    // 采样当前和下一个场景
+    vec4 currentScene = texture(mainTexture, v_uv0);
+    vec4 nextScene = texture(nextTexture, v_uv0);
+    
+    // 计算边缘
+    float edge = smoothstep(progress - edgeWidth, progress, rotation / (2.0 * 3.14159)) -
+                 smoothstep(progress, progress + edgeWidth, rotation / (2.0 * 3.14159));
+    
+    // 混合场景
+    vec4 finalColor = mix(currentScene, nextScene, mask);
+    
+    // 添加边缘发光
+    finalColor.rgb += edge * edgeColor;
+    
+    return finalColor;
+  }
+}% 
