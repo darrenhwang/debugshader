@@ -16,6 +16,11 @@ CCEffect %{
         depthWrite: false
       properties:
         mainTexture: { value: white }
+        threshold: { value: 0.5, editor: { type: float, range: [0, 1], slide: true } }
+        direction: { value: 0, editor: { type: float, range: [0, 1], slide: true } }
+        stripeCount: { value: 10, editor: { type: float, range: [1, 50], slide: true } }
+        stripeWidth: { value: 0.5, editor: { type: float, range: [0, 1], slide: true } }
+        edgeSoftness: { value: 0.1, editor: { type: float, range: [0, 1], slide: true } }
 }%
 
 CCProgram unlit-vs %{
@@ -48,10 +53,41 @@ CCProgram unlit-fs %{
   in vec4 v_color;
 
   uniform sampler2D mainTexture;
+  uniform Constant {
+    float threshold;
+    float direction;
+    float stripeCount;
+    float stripeWidth;
+    float edgeSoftness;
+  };
+
+  // 平滑过渡函数
+  float smoothStep(float edge0, float edge1, float x) {
+    float t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+  }
 
   vec4 frag () {
     vec4 o = texture(mainTexture, v_uv0);
     o *= v_color;
+    
+    // 计算UV坐标
+    vec2 uv = v_uv0;
+    if (direction > 0.5) {
+      uv = vec2(uv.y, uv.x); // 水平百叶窗
+    }
+    
+    // 计算条纹
+    float stripe = fract(uv.y * stripeCount);
+    float edge = smoothStep(threshold - edgeSoftness, threshold, stripe);
+    float mask = smoothStep(threshold, threshold + stripeWidth, stripe);
+    
+    // 应用遮罩
+    o.a *= mask;
+    
+    // 添加边缘过渡
+    o.a *= edge;
+    
     return o;
   }
 }% 

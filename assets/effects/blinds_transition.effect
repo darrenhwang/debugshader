@@ -16,12 +16,12 @@ CCEffect %{
         depthWrite: false
       properties:
         mainTexture: { value: white }
-        nextTexture: { value: white }  # 下一个场景的纹理
-        progress: { value: 0.0, editor: { range: [0, 1.0], slide: true } }  # 转场进度
-        blindsCount: { value: 10.0, editor: { range: [1, 50], step: 1 } }  # 百叶窗数量
-        direction: { value: 0.0, editor: { range: [0, 360], step: 1 } }  # 百叶窗方向
-        edgeWidth: { value: 0.1, editor: { range: [0, 0.5], slide: true } }  # 边缘宽度
-        edgeColor: { value: [1.0, 1.0, 1.0], editor: { type: color } }  # 边缘颜色
+        nextTexture: { value: white }
+        progress: { value: 0.0, editor: { type: float, range: [0, 1], slide: true } }
+        stripeCount: { value: 10, editor: { type: float, range: [1, 50], slide: true } }
+        stripeWidth: { value: 0.5, editor: { type: float, range: [0, 1], slide: true } }
+        edgeSoftness: { value: 0.1, editor: { type: float, range: [0, 1], slide: true } }
+        direction: { value: 0, editor: { type: float, range: [0, 1], slide: true } }
 }%
 
 CCProgram unlit-vs %{
@@ -55,52 +55,43 @@ CCProgram unlit-fs %{
 
   uniform sampler2D mainTexture;
   uniform sampler2D nextTexture;
-  
   uniform Constant {
     float progress;
-    float blindsCount;
+    float stripeCount;
+    float stripeWidth;
+    float edgeSoftness;
     float direction;
-    float edgeWidth;
-    vec3 edgeColor;
   };
 
-  // 计算旋转后的UV坐标
-  vec2 rotateUV(vec2 uv, float angle) {
-    float c = cos(angle);
-    float s = sin(angle);
-    vec2 center = vec2(0.5, 0.5);
-    return center + vec2(
-      c * (uv.x - center.x) - s * (uv.y - center.y),
-      s * (uv.x - center.x) + c * (uv.y - center.y)
-    );
+  // 平滑过渡函数
+  float smoothStep(float edge0, float edge1, float x) {
+    float t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
   }
 
   vec4 frag () {
-    // 将UV坐标旋转到指定方向
-    float angle = direction * 3.14159 / 180.0;
-    vec2 rotatedUV = rotateUV(v_uv0, angle);
+    // 计算UV坐标
+    vec2 uv = v_uv0;
+    if (direction > 0.5) {
+      uv = vec2(uv.y, uv.x); // 水平百叶窗
+    }
     
-    // 计算百叶窗遮罩
-    float blindWidth = 1.0 / blindsCount;
-    float blindIndex = floor(rotatedUV.y / blindWidth);
-    float blindProgress = (progress * blindsCount - blindIndex) * blindWidth;
-    float mask = smoothstep(0.0, 1.0, blindProgress);
+    // 计算条纹
+    float stripe = fract(uv.y * stripeCount);
+    float edge = smoothStep(progress - edgeSoftness, progress, stripe);
+    float mask = smoothStep(progress, progress + stripeWidth, stripe);
     
-    // 计算边缘
-    float edge = smoothstep(0.0, edgeWidth, blindProgress);
-    edge *= smoothstep(1.0, 1.0 - edgeWidth, blindProgress);
-    
-    // 混合两个场景
+    // 采样两个场景
     vec4 currentScene = texture(mainTexture, v_uv0);
     vec4 nextScene = texture(nextTexture, v_uv0);
     
-    // 混合颜色
-    vec3 finalColor = mix(currentScene.rgb, nextScene.rgb, mask);
-    finalColor = mix(finalColor, edgeColor, edge);
+    // 混合场景
+    vec4 finalColor = mix(currentScene, nextScene, mask);
+    finalColor *= v_color;
     
-    // 计算透明度
-    float alpha = mix(currentScene.a, nextScene.a, mask);
+    // 应用边缘过渡
+    finalColor.a *= edge;
     
-    return vec4(finalColor, alpha);
+    return finalColor;
   }
 }% 
