@@ -87,29 +87,26 @@ CCProgram unlit-fs %{
   }
 
   vec4 frag () {
-    // 安全检查：确保纹理有效
+    // 输出调试信息
     if (progress < 0.0 || progress > 1.0) {
-      return texture(mainTexture, v_uv0) * v_color;
+        return vec4(1.0, 0.0, 0.0, 1.0); // 红色表示错误
     }
     
     // 计算模糊方向
     vec2 blurDir;
     if (direction > 0.5) {
-      blurDir = vec2(1.0, 0.0); // 水平方向
+        blurDir = vec2(1.0, 0.0); // 水平方向
     } else {
-      blurDir = vec2(0.0, 1.0); // 垂直方向
+        blurDir = vec2(0.0, 1.0); // 垂直方向
     }
     
-    // 对两个场景进行模糊处理
-    vec4 currentScene = directionalBlur(mainTexture, v_uv0, blurDir, blurRadius * progress);
-    vec4 nextScene = directionalBlur(nextTexture, v_uv0, blurDir, blurRadius * (1.0 - progress));
+    // 进行模糊处理
+    vec4 currentScene = texture(mainTexture, v_uv0);
+    vec4 nextScene = texture(nextTexture, v_uv0);
     
     // 混合两个场景
     vec4 finalColor = mix(currentScene, nextScene, progress);
     finalColor *= v_color;
-    
-    // 应用模糊强度
-    finalColor.a *= (1.0 - blurStrength * progress);
     
     return finalColor;
   }
