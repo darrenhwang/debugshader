@@ -1,0 +1,78 @@
+CCEffect %{
+  techniques:
+  - name: transparent
+    passes:
+    - vert: sprite-vs:vert
+      frag: sprite-fs:frag
+      rasterizerState:
+        cullMode: none
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendSrcAlpha: src_alpha
+          blendDstAlpha: one_minus_src_alpha
+      properties:
+        mainTexture: { value: white }
+        startColor: { value: [1, 0, 0, 1] }
+        endColor: { value: [0, 0, 1, 1] }
+        isHorizontal: { value: 1 }
+}%
+
+CCProgram sprite-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  in vec4 a_color;
+  
+  out vec2 v_uv0;
+  out vec4 v_color;
+  
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matViewProj * pos;
+    v_uv0 = a_texCoord;
+    v_color = a_color;
+    return pos;
+  }
+}%
+
+CCProgram sprite-fs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  
+  in vec2 v_uv0;
+  in vec4 v_color;
+  
+  uniform sampler2D mainTexture;
+  
+  uniform Constant {
+    vec4 startColor;
+    vec4 endColor;
+    int isHorizontal;
+  };
+  
+  vec4 frag () {
+    // 采样原始纹理
+    vec4 texColor = texture(mainTexture, v_uv0);
+    
+    // 如果纹理完全透明，丢弃片段
+    if(texColor.a < 0.01) {
+      discard;
+    }
+    
+    // 计算渐变色
+    float t = isHorizontal > 0 ? v_uv0.x : v_uv0.y;
+    vec4 gradient = mix(startColor, endColor, t);
+    
+    // 使用文本的alpha通道和渐变色
+    // 关键点：只替换RGB部分，alpha保持原样
+    return vec4(gradient.rgb, texColor.a * v_color.a);
+  }
+}% 
