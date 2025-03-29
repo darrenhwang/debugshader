@@ -1,31 +1,36 @@
 CCEffect %{
   techniques:
-  - passes:
-    - vert: unlit-vs:vert
-      frag: unlit-fs:frag
+  - name: transparent
+    passes:
+    - vert: sprite-vs:vert
+      frag: sprite-fs:frag
       blendState:
         targets:
         - blend: true
           blendSrc: src_alpha
           blendDst: one_minus_src_alpha
-          blendDstAlpha: one_minus_src_alpha
       rasterizerState:
         cullMode: none
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
       properties:
-        mainTexture:    { value: white }
-        nextTexture:    { value: white }
-        progress:       { value: 0.0, editor: { type: vec2 } }
-        centerX:        { value: 0.5, editor: { type: vec2 } }
-        centerY:        { value: 0.5, editor: { type: vec2 } }
-        rotationSpeed:  { value: 1.0, editor: { type: vec2 } }
-        edgeWidth:      { value: 0.1, editor: { type: vec2 } }
-        edgeColor:      { value: [1.0, 1.0, 1.0], editor: { type: color } }
+        mainTexture: { value: white }
+        secondTexture: { value: white }
+        progress: { value: 0.0, editor: { type: float, range: [0, 1], slide: true } }
+        centerX: { value: 0.5, editor: { type: float, range: [0, 1], slide: true } }
+        centerY: { value: 0.5, editor: { type: float, range: [0, 1], slide: true } }
+        rotationSpeed: { value: 1.0, editor: { type: float, range: [-5, 5], slide: true } }
+        useAnimation: { value: 0, editor: { type: boolean } }
+        animationSpeed: { value: 1.0, editor: { type: float, range: [0.1, 5.0], slide: true } }
+        edgeWidth: { value: 0.05, editor: { type: float, range: [0, 0.2], slide: true } }
+        vortexType: { value: 0, editor: { type: int, range: [0, 3], step: 1 } }
 }%
 
-CCProgram unlit-vs %{
+CCProgram sprite-vs %{
   precision highp float;
-  #include <cc-global>
-  #include <cc-local>
+  #include <builtin/uniforms/cc-global>
+  #include <builtin/uniforms/cc-local>
 
   in vec3 a_position;
   in vec2 a_texCoord;
@@ -36,57 +41,85 @@ CCProgram unlit-vs %{
 
   vec4 vert () {
     vec4 pos = vec4(a_position, 1);
-    pos = cc_matViewProj * cc_matWorld * pos;
+    pos = cc_matWorld * pos;
+    pos = cc_matViewProj * pos;
     v_uv0 = a_texCoord;
     v_color = a_color;
     return pos;
   }
 }%
 
-CCProgram unlit-fs %{
+CCProgram sprite-fs %{
   precision highp float;
-  #include <cc-global>
-  #include <common>
+  #include <builtin/uniforms/cc-global>
 
   in vec2 v_uv0;
   in vec4 v_color;
 
   uniform sampler2D mainTexture;
-  uniform sampler2D nextTexture;
+  uniform sampler2D secondTexture;
+  
   uniform Constant {
     float progress;
     float centerX;
     float centerY;
     float rotationSpeed;
+    float useAnimation;
+    float animationSpeed;
     float edgeWidth;
-    vec3 edgeColor;
+    int vortexType;
   };
 
+  float getRotationFactor(float angle, float dist, float time) {
+    if (vortexType == 0) {
+      // 标准旋涡
+      return angle + dist * rotationSpeed + time;
+    } else if (vortexType == 1) {
+      // 双向旋涡
+      return angle + sin(dist * 3.14159 * 2.0) * rotationSpeed + time;
+    } else if (vortexType == 2) {
+      // 螺旋旋涡
+      return angle + (1.0 - dist) * rotationSpeed * 3.0 + time;
+    } else {
+      // 波纹旋涡
+      return angle + sin(dist * 10.0) * rotationSpeed + time;
+    }
+  }
+
   vec4 frag () {
-    // 计算到中心的距离和角度
+    // 采样两个纹理
+    vec4 currentScene = texture(mainTexture, v_uv0);
+    vec4 nextScene = texture(secondTexture, v_uv0);
+    
+    // 计算到中心点的距离和角度
     vec2 center = vec2(centerX, centerY);
     vec2 delta = v_uv0 - center;
     float dist = length(delta);
     float angle = atan(delta.y, delta.x);
     
-    // 计算漩涡效果
-    float rotation = angle + dist * rotationSpeed;
-    float mask = step(progress, rotation / (2.0 * 3.14159));
+    // 计算动画时间
+    float time = useAnimation > 0.5 ? cc_time.x * animationSpeed : 0.0;
     
-    // 采样当前和下一个场景
-    vec4 currentScene = texture(mainTexture, v_uv0);
-    vec4 nextScene = texture(nextTexture, v_uv0);
+    // 计算旋涡效果，使用不同类型
+    float rotation = getRotationFactor(angle, dist, time);
+    float normalized = rotation / (2.0 * 3.14159);
+    normalized = fract(normalized); // 保持在[0,1]范围内
     
     // 计算边缘
-    float edge = smoothstep(progress - edgeWidth, progress, rotation / (2.0 * 3.14159)) -
-                 smoothstep(progress, progress + edgeWidth, rotation / (2.0 * 3.14159));
+    float edgeFactor = 0.0;
+    if (abs(normalized - progress) < edgeWidth) {
+        edgeFactor = 1.0;
+    }
     
-    // 混合场景
-    vec4 finalColor = mix(currentScene, nextScene, mask);
+    // 计算遮罩
+    float mask = step(progress, normalized);
     
-    // 添加边缘发光
-    finalColor.rgb += edge * edgeColor;
+    // 混合两个场景
+    vec4 finalColor = mix(nextScene, currentScene, mask);
     
-    return finalColor;
+    // 简单的边缘高亮
+    finalColor.rgb = mix(finalColor.rgb, vec3(1.0), edgeFactor * 0.5);
+    
+    return finalColor * v_color;
   }
 }% 

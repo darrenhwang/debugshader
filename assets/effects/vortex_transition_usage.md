@@ -1,112 +1,145 @@
-# 漩涡转场效果使用说明
+# 涡旋过渡效果使用说明
 
-## 一、效果概述
+## 效果概述
 
-这是一个模拟漩涡效果的转场，支持自定义旋转中心、旋转速度和边缘发光效果。适用于场景切换、技能释放等需要漩涡效果的场景。
+涡旋过渡效果是一种动态的场景转换效果，通过旋转扭曲将一个场景平滑地转换到另一个场景。该效果支持自定义涡旋中心点、旋转速度和边缘发光，适用于传送门、魔法漩涡或创意场景切换。
 
-## 二、使用方法
+## 使用方法
 
-### 1. 基础设置
-1. 在 Cocos Creator 中创建新材质
-2. 选择 `vortex_transition` 效果
-3. 将材质应用到目标精灵上
+1. 在 Cocos Creator 中，创建一个新的材质（Material）
+2. 在材质检查器中，选择"效果"（Effect）下拉菜单，选择`vortex_transition`效果
+3. 设置材质参数：
+   - 将`mainTexture`设置为当前场景纹理
+   - 将`nextTexture`设置为目标场景纹理
+   - 根据需要调整其他参数（中心点、旋转速度等）
+4. 将材质应用到目标精灵（Sprite）上
+5. 通过代码或动画系统控制`progress`参数来实现过渡动画
 
-### 2. 参数说明
+## 参数说明
 
-#### 基础参数
-- `progress`：转场进度
-  - 范围：0.0 - 1.0
-  - 默认值：0.0
-  - 说明：控制转场进度，0表示开始，1表示完成
+| 参数名称 | 类型 | 范围 | 默认值 | 说明 |
+|---------|------|------|--------|------|
+| mainTexture | Texture | - | white | 起始场景纹理 |
+| nextTexture | Texture | - | white | 目标场景纹理 |
+| progress | Float | 0.0 - 1.0 | 0.0 | 过渡进度，0为起始场景，1为目标场景 |
+| centerX | Float | 0.0 - 1.0 | 0.5 | 涡旋中心点X坐标 |
+| centerY | Float | 0.0 - 1.0 | 0.5 | 涡旋中心点Y坐标 |
+| rotationSpeed | Float | 0.1 - 10.0 | 1.0 | 涡旋旋转速度 |
 
-- `centerX/Y`：旋转中心
-  - 范围：0.0 - 1.0
-  - 默认值：0.5, 0.5
-  - 说明：控制漩涡的中心位置
+## 效果预设
 
-- `rotationSpeed`：旋转速度
-  - 范围：0.0 - 5.0
-  - 默认值：1.0
-  - 说明：控制漩涡的旋转速度
+### 标准涡旋
 
-- `edgeWidth`：边缘宽度
-  - 范围：0.0 - 0.5
-  - 默认值：0.1
-  - 说明：控制发光边缘的宽度
-
-- `edgeColor`：边缘颜色
-  - 类型：颜色
-  - 默认值：[1.0, 1.0, 1.0]
-  - 说明：控制边缘发光的颜色
-
-## 三、效果预设
-
-### 1. 中心漩涡
 ```json
 {
-  "progress": 0.5,
+  "progress": 0.0,
   "centerX": 0.5,
   "centerY": 0.5,
-  "rotationSpeed": 1.0,
-  "edgeWidth": 0.1,
-  "edgeColor": [1.0, 1.0, 1.0]
+  "rotationSpeed": 1.0
 }
 ```
 
-### 2. 快速漩涡
+### 快速涡旋
+
 ```json
 {
-  "progress": 0.5,
+  "progress": 0.0,
   "centerX": 0.5,
   "centerY": 0.5,
-  "rotationSpeed": 2.0,
-  "edgeWidth": 0.15,
-  "edgeColor": [0.8, 0.8, 1.0]
+  "rotationSpeed": 3.0
 }
 ```
 
-### 3. 偏心漩涡
+### 偏心涡旋
+
 ```json
 {
-  "progress": 0.5,
-  "centerX": 0.3,
-  "centerY": 0.7,
-  "rotationSpeed": 1.5,
-  "edgeWidth": 0.12,
-  "edgeColor": [1.0, 0.8, 0.0]
+  "progress": 0.0,
+  "centerX": 0.75,
+  "centerY": 0.25,
+  "rotationSpeed": 1.5
 }
 ```
 
-## 四、使用场景
+### 慢速涡旋
 
-### 1. 场景切换
-- 使用中心漩涡效果
-- 调整进度实现平滑过渡
-- 可以添加边缘发光增加视觉效果
+```json
+{
+  "progress": 0.0,
+  "centerX": 0.5,
+  "centerY": 0.5,
+  "rotationSpeed": 0.5
+}
+```
 
-### 2. 技能释放
-- 使用快速漩涡效果
-- 调整旋转速度创造打击感
-- 控制边缘颜色匹配技能效果
+## 使用场景
 
-### 3. 特殊效果
-- 使用偏心漩涡效果
-- 调整旋转中心创造独特效果
-- 结合其他效果增强表现力
+1. **传送门效果**：角色穿越传送门或空间裂缝时的过渡
+2. **魔法漩涡**：召唤魔法或特殊技能时的视觉效果
+3. **场景切换**：游戏关卡或场景之间的创意过渡
+4. **时空扭曲**：表现时间或空间变形的视觉效果
+5. **黑洞效应**：模拟引力场或吸入效果
 
-## 五、注意事项
+## 性能优化
 
-### 1. 性能优化
-- 避免使用过大的旋转速度
-- 控制转场进度变化速度
-- 适当调整效果参数
+1. 适当降低`rotationSpeed`可减少每帧计算量
+2. 将涡旋中心点设置在视觉焦点位置提高观感
+3. 避免同屏出现过多涡旋效果实例
+4. 在低性能设备上考虑降低过渡持续时间
 
-### 2. 常见问题
-- 如果效果不明显，检查旋转速度
-- 如果边缘太锐利，增加边缘宽度
-- 如果性能下降，降低旋转速度
+## 常见问题
 
-### 3. 最佳实践
-- 根据场景需求选择合适的预设
-- 微调参数获得最佳效果
-- 可以结合其他效果增强表现力 
+### 效果不可见或显示异常
+- 检查材质是否正确应用到精灵上
+- 确认已设置有效的`mainTexture`和`nextTexture`
+- 验证`progress`值是否在有效范围内
+
+### 涡旋效果不明显
+- 增加`rotationSpeed`值使旋转更加显著
+- 调整涡旋中心点位置改变效果焦点
+- 确保过渡持续时间足够长以展示完整效果
+
+## 代码示例
+
+### 实现简单的涡旋过渡
+
+```typescript
+// 在场景脚本中
+import { _decorator, Component, Node, Material, Sprite } from 'cc';
+const { ccclass, property } = _decorator;
+
+@ccclass('VortexTransition')
+export class VortexTransition extends Component {
+    @property(Material)
+    private transitionMaterial: Material = null;
+    
+    @property(Sprite)
+    private transitionSprite: Sprite = null;
+    
+    private isTransitioning: boolean = false;
+    private transitionTime: number = 1.5;
+    private elapsedTime: number = 0;
+    
+    startTransition() {
+        if (!this.isTransitioning) {
+            this.isTransitioning = true;
+            this.elapsedTime = 0;
+            this.transitionSprite.node.active = true;
+        }
+    }
+    
+    update(deltaTime: number) {
+        if (this.isTransitioning) {
+            this.elapsedTime += deltaTime;
+            const progress = Math.min(this.elapsedTime / this.transitionTime, 1.0);
+            
+            // 更新材质的progress参数
+            this.transitionMaterial.setProperty('progress', progress);
+            
+            if (progress >= 1.0) {
+                this.isTransitioning = false;
+                // 这里可以触发场景加载完成事件
+            }
+        }
+    }
+} 

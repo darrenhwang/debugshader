@@ -1,125 +1,167 @@
-# 波浪转场效果使用说明
+# 波浪过渡效果使用说明
 
-## 一、效果概述
+## 效果概述
 
-这是一个模拟波浪效果的转场，支持自定义波浪数量、振幅、速度和方向。适用于场景切换、技能释放等需要波浪效果的场景。
+波浪过渡效果是一种平滑的场景转换效果，通过波浪状的边界线将一个场景逐渐过渡到另一个场景。该效果支持自定义波浪参数（数量、振幅、速度）、过渡方向和边缘发光，适用于水相关场景、魔法效果或创意UI切换。
 
-## 二、使用方法
+## 使用方法
 
-### 1. 基础设置
-1. 在 Cocos Creator 中创建新材质
-2. 选择 `wave_transition` 效果
-3. 将材质应用到目标精灵上
+1. 在 Cocos Creator 中，创建一个新的材质（Material）
+2. 在材质检查器中，选择"效果"（Effect）下拉菜单，选择`wave_transition`效果
+3. 设置材质参数：
+   - 将`mainTexture`设置为当前场景纹理
+   - 将`secondTexture`设置为目标场景纹理
+   - 根据需要调整其他参数（波浪数量、振幅、方向等）
+4. 将材质应用到目标精灵（Sprite）上
+5. 通过代码或动画系统控制`progress`参数来实现过渡动画
 
-### 2. 参数说明
+## 参数说明
 
-#### 基础参数
-- `progress`：转场进度
-  - 范围：0.0 - 1.0
-  - 默认值：0.0
-  - 说明：控制转场进度，0表示开始，1表示完成
+| 参数名称 | 类型 | 范围 | 默认值 | 说明 |
+|---------|------|------|--------|------|
+| mainTexture | Texture | - | white | 起始场景纹理 |
+| secondTexture | Texture | - | white | 目标场景纹理 |
+| progress | Float | 0.0 - 1.0 | 0.0 | 过渡进度，0为起始场景，1为目标场景 |
+| waveCount | Float | 1.0 - 10.0 | 3.0 | 波浪数量，越大波浪越密集 |
+| waveAmplitude | Float | 0.0 - 0.5 | 0.1 | 波浪振幅，影响波浪高度 |
+| waveSpeed | Float | 0.0 - 5.0 | 1.0 | 波浪移动速度 |
+| direction | Float | 0 - 360 | 0.0 | 过渡方向（角度值，0为从下到上） |
+| edgeWidth | Float | 0.0 - 0.2 | 0.05 | 边缘发光宽度 |
+| edgeColorR | Float | 0.0 - 1.0 | 1.0 | 边缘发光颜色的红色分量 |
+| edgeColorG | Float | 0.0 - 1.0 | 1.0 | 边缘发光颜色的绿色分量 |
+| edgeColorB | Float | 0.0 - 1.0 | 1.0 | 边缘发光颜色的蓝色分量 |
 
-- `waveCount`：波浪数量
-  - 范围：1.0 - 10.0
-  - 默认值：3.0
-  - 说明：控制波浪的密度
+## 效果预设
 
-- `waveAmplitude`：波浪振幅
-  - 范围：0.0 - 0.5
-  - 默认值：0.1
-  - 说明：控制波浪的起伏程度
+### 标准波浪过渡
 
-- `waveSpeed`：波浪速度
-  - 范围：0.0 - 5.0
-  - 默认值：1.0
-  - 说明：控制波浪的移动速度
-
-- `direction`：波浪方向
-  - 范围：0 - 360
-  - 默认值：0
-  - 说明：控制波浪的传播方向
-
-- `edgeWidth`：边缘宽度
-  - 范围：0.0 - 0.5
-  - 默认值：0.1
-  - 说明：控制发光边缘的宽度
-
-- `edgeColor`：边缘颜色
-  - 类型：颜色
-  - 默认值：[1.0, 1.0, 1.0]
-  - 说明：控制边缘发光的颜色
-
-## 三、效果预设
-
-### 1. 水平波浪
 ```json
 {
-  "progress": 0.5,
   "waveCount": 3.0,
   "waveAmplitude": 0.1,
   "waveSpeed": 1.0,
   "direction": 0,
-  "edgeWidth": 0.1,
-  "edgeColor": [1.0, 1.0, 1.0]
+  "edgeWidth": 0.05,
+  "edgeColorR": 1.0,
+  "edgeColorG": 1.0,
+  "edgeColorB": 1.0
 }
 ```
 
-### 2. 垂直波浪
+### 水平波浪过渡
+
 ```json
 {
-  "progress": 0.5,
-  "waveCount": 4.0,
-  "waveAmplitude": 0.15,
-  "waveSpeed": 1.5,
+  "waveCount": 3.0,
+  "waveAmplitude": 0.1,
+  "waveSpeed": 1.0,
   "direction": 90,
-  "edgeWidth": 0.12,
-  "edgeColor": [0.8, 0.8, 1.0]
+  "edgeWidth": 0.05,
+  "edgeColorR": 0.0,
+  "edgeColorG": 0.5,
+  "edgeColorB": 1.0
 }
 ```
 
-### 3. 斜向波浪
+### 多重波浪效果
+
 ```json
 {
-  "progress": 0.5,
-  "waveCount": 5.0,
-  "waveAmplitude": 0.2,
+  "waveCount": 8.0,
+  "waveAmplitude": 0.05,
   "waveSpeed": 2.0,
+  "direction": 0,
+  "edgeWidth": 0.1,
+  "edgeColorR": 0.0,
+  "edgeColorG": 1.0,
+  "edgeColorB": 0.5
+}
+```
+
+### 斜向慢速波浪
+
+```json
+{
+  "waveCount": 2.0,
+  "waveAmplitude": 0.2,
+  "waveSpeed": 0.5,
   "direction": 45,
   "edgeWidth": 0.15,
-  "edgeColor": [1.0, 0.8, 0.0]
+  "edgeColorR": 1.0,
+  "edgeColorG": 0.0,
+  "edgeColorB": 0.5
 }
 ```
 
-## 四、使用场景
+## 使用场景
 
-### 1. 场景切换
-- 使用水平或垂直波浪
-- 调整波浪参数控制效果
-- 可以添加边缘发光增加视觉效果
+1. **水相关场景过渡**：游泳池、海洋、河流等水相关场景切换
+2. **魔法效果**：水系魔法技能释放或结界展示
+3. **UI动画**：创意流体界面切换
+4. **梦境/幻境效果**：表现迷幻或梦境场景转换
+5. **能量波动**：能量冲击波或力场展示
 
-### 2. 技能释放
-- 使用斜向波浪
-- 调整波浪速度创造打击感
-- 控制波浪振幅增加表现力
+## 性能优化
 
-### 3. 特殊效果
-- 使用大量波浪创造密集效果
-- 调整方向创造复杂图案
-- 结合其他效果增强表现力
+1. 减少`waveCount`值可降低计算复杂度
+2. 适当降低`waveSpeed`和`waveAmplitude`可减少每帧计算量
+3. 减小`edgeWidth`值可降低边缘混合计算复杂度
+4. 避免同屏出现过多波浪效果实例
 
-## 五、注意事项
+## 常见问题
 
-### 1. 性能优化
-- 避免使用过多的波浪数量
-- 控制波浪振幅范围
-- 适当调整效果参数
+### 效果不可见或显示异常
+- 检查材质是否正确应用到精灵上
+- 确认已设置有效的`mainTexture`和`secondTexture`
+- 验证`progress`值是否在有效范围内
 
-### 2. 常见问题
-- 如果效果不明显，检查波浪参数
-- 如果边缘太锐利，增加边缘宽度
-- 如果性能下降，减少波浪数量
+### 波浪效果不明显
+- 增加`waveAmplitude`值使波浪更加显著
+- 适当调整`waveCount`值改变波浪密度
+- 尝试不同的`direction`值改变波浪方向
 
-### 3. 最佳实践
-- 根据场景需求选择合适的预设
-- 微调参数获得最佳效果
-- 可以结合其他效果增强表现力 
+## 代码示例
+
+### 实现简单的波浪过渡
+
+```typescript
+// 在场景脚本中
+import { _decorator, Component, Node, Material, Sprite } from 'cc';
+const { ccclass, property } = _decorator;
+
+@ccclass('WaveTransition')
+export class WaveTransition extends Component {
+    @property(Material)
+    private transitionMaterial: Material = null;
+    
+    @property(Sprite)
+    private transitionSprite: Sprite = null;
+    
+    private isTransitioning: boolean = false;
+    private transitionTime: number = 1.5;
+    private elapsedTime: number = 0;
+    
+    startTransition() {
+        if (!this.isTransitioning) {
+            this.isTransitioning = true;
+            this.elapsedTime = 0;
+            this.transitionSprite.node.active = true;
+        }
+    }
+    
+    update(deltaTime: number) {
+        if (this.isTransitioning) {
+            this.elapsedTime += deltaTime;
+            const progress = Math.min(this.elapsedTime / this.transitionTime, 1.0);
+            
+            // 更新材质的progress参数
+            this.transitionMaterial.setProperty('progress', progress);
+            
+            if (progress >= 1.0) {
+                this.isTransitioning = false;
+                // 这里可以触发场景加载完成事件
+            }
+        }
+    }
+}
+``` 

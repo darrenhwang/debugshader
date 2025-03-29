@@ -2,8 +2,8 @@ CCEffect %{
   techniques:
   - name: transparent
     passes:
-    - vert: unlit-vs:vert
-      frag: unlit-fs:frag
+    - vert: sprite-vs:vert
+      frag: sprite-fs:frag
       blendState:
         targets:
         - blend: true
@@ -16,17 +16,19 @@ CCEffect %{
         depthWrite: false
       properties:
         mainTexture: { value: white }
-        nextTexture: { value: white }  # 下一个场景的纹理
-        progress: { value: 0.0, editor: { range: [0, 1.0], slide: true } }  # 转场进度
-        waveCount: { value: 3.0, editor: { range: [1, 10], step: 0.1 } }  # 波浪数量
-        waveAmplitude: { value: 0.1, editor: { range: [0, 0.5], slide: true } }  # 波浪振幅
-        waveSpeed: { value: 1.0, editor: { range: [0, 5.0], slide: true } }  # 波浪速度
-        direction: { value: 0.0, editor: { range: [0, 360], step: 1 } }  # 波浪方向
-        edgeWidth: { value: 0.1, editor: { range: [0, 0.5], slide: true } }  # 边缘宽度
-        edgeColor: { value: [1.0, 1.0, 1.0], editor: { type: color } }  # 边缘颜色
+        secondTexture: { value: white }
+        progress: { value: 0.0, editor: { type: float, range: [0, 1], slide: true } }
+        waveCount: { value: 3.0, editor: { type: float, range: [1, 10], slide: true } }
+        waveAmplitude: { value: 0.1, editor: { type: float, range: [0, 0.5], slide: true } }
+        waveSpeed: { value: 1.0, editor: { type: float, range: [0, 5.0], slide: true } }
+        direction: { value: 0.0, editor: { type: float, range: [0, 360], step: 1 } }
+        edgeWidth: { value: 0.05, editor: { type: float, range: [0, 0.2], slide: true } }
+        edgeColorR: { value: 1.0, editor: { type: float, range: [0, 1], slide: true } }
+        edgeColorG: { value: 1.0, editor: { type: float, range: [0, 1], slide: true } }
+        edgeColorB: { value: 1.0, editor: { type: float, range: [0, 1], slide: true } }
 }%
 
-CCProgram unlit-vs %{
+CCProgram sprite-vs %{
   precision highp float;
   #include <builtin/uniforms/cc-global>
   #include <builtin/uniforms/cc-local>
@@ -48,7 +50,7 @@ CCProgram unlit-vs %{
   }
 }%
 
-CCProgram unlit-fs %{
+CCProgram sprite-fs %{
   precision highp float;
   #include <builtin/uniforms/cc-global>
 
@@ -56,7 +58,7 @@ CCProgram unlit-fs %{
   in vec4 v_color;
 
   uniform sampler2D mainTexture;
-  uniform sampler2D nextTexture;
+  uniform sampler2D secondTexture;
   
   uniform Constant {
     float progress;
@@ -65,7 +67,9 @@ CCProgram unlit-fs %{
     float waveSpeed;
     float direction;
     float edgeWidth;
-    vec3 edgeColor;
+    float edgeColorR;
+    float edgeColorG;
+    float edgeColorB;
   };
 
   // 计算旋转后的UV坐标
@@ -79,37 +83,37 @@ CCProgram unlit-fs %{
     );
   }
 
-  // 计算波浪函数
-  float wave(vec2 uv, float time) {
-    float wave = sin(uv.x * waveCount * 6.28318 + time * waveSpeed) * waveAmplitude;
-    return wave;
-  }
-
   vec4 frag () {
     // 将UV坐标旋转到指定方向
     float angle = direction * 3.14159 / 180.0;
     vec2 rotatedUV = rotateUV(v_uv0, angle);
     
-    // 计算波浪遮罩
-    float time = cc_time.x * 2.0;
-    float waveOffset = wave(rotatedUV, time);
-    float mask = smoothstep(progress - waveOffset, progress, rotatedUV.y);
+    // 计算波浪效果，包含动画
+    float time = cc_time.x * waveSpeed;
+    float wave = sin(rotatedUV.x * waveCount * 6.28318 + time) * waveAmplitude;
     
-    // 计算边缘
-    float edge = smoothstep(progress - edgeWidth, progress, rotatedUV.y);
-    edge *= smoothstep(progress + edgeWidth, progress, rotatedUV.y);
+    // 带波浪的过渡
+    float adjustedY = rotatedUV.y + wave;
+    float threshold = progress;
+    
+    // 计算遮罩和边缘
+    float mask = step(threshold, adjustedY);
+    
+    // 简单边缘检测
+    float edge = 0.0;
+    if (abs(adjustedY - threshold) < edgeWidth) {
+        edge = 1.0;
+    }
     
     // 混合两个场景
     vec4 currentScene = texture(mainTexture, v_uv0);
-    vec4 nextScene = texture(nextTexture, v_uv0);
+    vec4 nextScene = texture(secondTexture, v_uv0);
+    vec4 finalColor = mix(nextScene, currentScene, mask);
     
-    // 混合颜色
-    vec3 finalColor = mix(currentScene.rgb, nextScene.rgb, mask);
-    finalColor = mix(finalColor, edgeColor, edge);
+    // 添加边缘发光
+    vec3 edgeColor = vec3(edgeColorR, edgeColorG, edgeColorB);
+    finalColor.rgb = mix(finalColor.rgb, edgeColor, edge);
     
-    // 计算透明度
-    float alpha = mix(currentScene.a, nextScene.a, mask);
-    
-    return vec4(finalColor, alpha);
+    return finalColor * v_color;
   }
 }% 

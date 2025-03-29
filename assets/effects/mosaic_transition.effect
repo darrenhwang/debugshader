@@ -1,6 +1,7 @@
 CCEffect %{
   techniques:
-  - passes:
+  - name: transparent
+    passes:
     - vert: unlit-vs:vert
       frag: unlit-fs:frag
       blendState:
@@ -8,22 +9,28 @@ CCEffect %{
         - blend: true
           blendSrc: src_alpha
           blendDst: one_minus_src_alpha
-          blendDstAlpha: one_minus_src_alpha
       rasterizerState:
         cullMode: none
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
       properties:
-        mainTexture:    { value: white }
-        nextTexture:    { value: white }
-        progress:       { value: 0.0, editor: { type: vec2 } }
-        tileSize:       { value: 10.0, editor: { type: vec2 } }
-        edgeWidth:      { value: 0.1, editor: { type: vec2 } }
-        edgeColor:      { value: [1.0, 1.0, 1.0], editor: { type: color } }
+        mainTexture: { value: white }
+        nextTexture: { value: white }
+        progress: { value: 0.0, editor: { type: float, range: [0, 1], slide: true } }
+        tileSize: { value: 10.0, editor: { type: float, range: [1, 50], slide: true } }
+        direction: { value: 0.0, editor: { type: float, range: [0, 360], slide: true } }
+        edgeWidth: { value: 0.1, editor: { type: float, range: [0, 0.5], slide: true } }
+        edgeColor: { value: [1.0, 1.0, 1.0, 1.0], editor: { type: color } }
+        useAnimation: { value: 0.0, editor: { type: float, range: [0, 1], slide: true } }
+        animationSpeed: { value: 1.0, editor: { type: float, range: [0, 5], slide: true } }
+        shapeType: { value: 0, editor: { type: int, range: [0, 3], slide: true } }
 }%
 
 CCProgram unlit-vs %{
   precision highp float;
-  #include <cc-global>
-  #include <cc-local>
+  #include <builtin/uniforms/cc-global>
+  #include <builtin/uniforms/cc-local>
 
   in vec3 a_position;
   in vec2 a_texCoord;
@@ -34,7 +41,8 @@ CCProgram unlit-vs %{
 
   vec4 vert () {
     vec4 pos = vec4(a_position, 1);
-    pos = cc_matViewProj * cc_matWorld * pos;
+    pos = cc_matWorld * pos;
+    pos = cc_matViewProj * pos;
     v_uv0 = a_texCoord;
     v_color = a_color;
     return pos;
@@ -43,8 +51,7 @@ CCProgram unlit-vs %{
 
 CCProgram unlit-fs %{
   precision highp float;
-  #include <cc-global>
-  #include <common>
+  #include <builtin/uniforms/cc-global>
 
   in vec2 v_uv0;
   in vec4 v_color;
@@ -54,30 +61,120 @@ CCProgram unlit-fs %{
   uniform Constant {
     float progress;
     float tileSize;
+    float direction;
     float edgeWidth;
-    vec3 edgeColor;
+    vec4 edgeColor;
+    float useAnimation;
+    float animationSpeed;
+    int shapeType;
   };
 
+  // 旋转UV坐标
+  vec2 rotateUV(vec2 uv, float angle) {
+    float rad = radians(angle);
+    float c = cos(rad);
+    float s = sin(rad);
+    vec2 center = vec2(0.5, 0.5);
+    vec2 offset = uv - center;
+    vec2 rotated = vec2(
+      offset.x * c - offset.y * s,
+      offset.x * s + offset.y * c
+    );
+    return rotated + center;
+  }
+
+  // 创建不同形状的马赛克
+  vec2 createTileUV(vec2 uv, int type) {
+    // 默认矩形马赛克
+    vec2 tileUV = floor(uv * tileSize) / tileSize;
+    
+    if (type == 1) {
+      // 圆形马赛克
+      vec2 fractUV = fract(uv * tileSize);
+      float dist = length(fractUV - vec2(0.5));
+      
+      // 将UV中心点平移到网格中心
+      vec2 centeredUV = floor(uv * tileSize) / tileSize + vec2(0.5) / tileSize;
+      
+      // 基于距离调整UV
+      float circleSize = 0.4; // 圆的大小
+      if (dist < circleSize) {
+        return centeredUV;
+      } else {
+        return uv;
+      }
+    } 
+    else if (type == 2) {
+      // 菱形马赛克
+      vec2 fractUV = fract(uv * tileSize);
+      float dist = abs(fractUV.x - 0.5) + abs(fractUV.y - 0.5);
+      
+      // 将UV中心点平移到网格中心
+      vec2 centeredUV = floor(uv * tileSize) / tileSize + vec2(0.5) / tileSize;
+      
+      // 基于距离调整UV
+      float diamondSize = 0.4; // 菱形大小
+      if (dist < diamondSize) {
+        return centeredUV;
+      } else {
+        return uv;
+      }
+    }
+    else if (type == 3) {
+      // 六边形马赛克
+      vec2 gridPos = floor(uv * tileSize);
+      vec2 hexPos = fract(uv * tileSize) * 2.0 - 1.0;
+      
+      // 交错网格
+      if (mod(gridPos.y, 2.0) == 1.0) {
+        hexPos.x += 0.5;
+      }
+      
+      // 六边形判断
+      float hexDist = max(abs(hexPos.x), abs(hexPos.y) * 0.866);
+      
+      if (hexDist < 0.8) {
+        return floor(uv * tileSize) / tileSize + vec2(0.5) / tileSize;
+      } else {
+        return uv;
+      }
+    }
+    
+    return tileUV;
+  }
+
   vec4 frag () {
-    // 计算马赛克UV
-    vec2 tileUV = floor(v_uv0 * tileSize) / tileSize;
+    // 处理动画
+    float currentProgress = progress;
+    if (useAnimation > 0.5) {
+      currentProgress = mod(progress + cc_time.x * animationSpeed * 0.1, 1.0);
+    }
+
+    // 旋转UV坐标
+    vec2 rotatedUV = rotateUV(v_uv0, direction);
+    
+    // 创建马赛克UV
+    vec2 tileUV = createTileUV(rotatedUV, shapeType);
     
     // 采样当前和下一个场景
     vec4 currentScene = texture(mainTexture, v_uv0);
     vec4 nextScene = texture(nextTexture, v_uv0);
     
     // 计算马赛克遮罩
-    float mask = step(progress, tileUV.x);
+    float mask = step(currentProgress, tileUV.x);
     
     // 计算边缘
-    float edge = smoothstep(progress - edgeWidth, progress, tileUV.x) -
-                 smoothstep(progress, progress + edgeWidth, tileUV.x);
+    float edge = smoothstep(currentProgress - edgeWidth, currentProgress, tileUV.x) -
+                 smoothstep(currentProgress, currentProgress + edgeWidth, tileUV.x);
     
     // 混合场景
     vec4 finalColor = mix(currentScene, nextScene, mask);
     
     // 添加边缘发光
-    finalColor.rgb += edge * edgeColor;
+    finalColor.rgb = mix(finalColor.rgb, edgeColor.rgb, edge * edgeColor.a);
+    
+    // 应用顶点颜色
+    finalColor *= v_color;
     
     return finalColor;
   }

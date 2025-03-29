@@ -16,12 +16,12 @@ CCEffect %{
         depthWrite: false
       properties:
         mainTexture: { value: white }
-        nextTexture: { value: white }
+        secondTexture: { value: white }
         progress: { value: 0.0, editor: { type: float, range: [0, 1], slide: true } }
         centerX: { value: 0.5, editor: { type: float, range: [0, 1], slide: true } }
         centerY: { value: 0.5, editor: { type: float, range: [0, 1], slide: true } }
         edgeWidth: { value: 0.1, editor: { type: float, range: [0, 0.5], slide: true } }
-        edgeColor: { value: [1.0, 1.0, 1.0], editor: { type: color } }
+        edgeColor: { value: [1.0, 1.0, 1.0, 1.0], editor: { type: color } }
         isReverse: { value: 0, editor: { type: int, range: [0, 1], step: 1 } }
         edgeBrightness: { value: 1.0, editor: { type: float, range: [0, 2], slide: true } }
         debugMode: { value: 0, editor: { type: int, range: [0, 3], step: 1 } }
@@ -57,14 +57,14 @@ CCProgram sprite-fs %{
   in vec4 v_color;
 
   uniform sampler2D mainTexture;
-  uniform sampler2D nextTexture;
+  uniform sampler2D secondTexture;
   
   uniform Constant {
     float progress;
     float centerX;
     float centerY;
     float edgeWidth;
-    vec3 edgeColor;
+    vec4 edgeColor;
     int isReverse;
     float edgeBrightness;
     int debugMode;
@@ -73,7 +73,7 @@ CCProgram sprite-fs %{
   vec4 frag () {
     // 采样两个纹理
     vec4 currentScene = texture(mainTexture, v_uv0);
-    vec4 nextScene = texture(nextTexture, v_uv0);
+    vec4 nextScene = texture(secondTexture, v_uv0);
     
     // 计算到中心点的距离
     vec2 center = vec2(centerX, centerY);
@@ -124,7 +124,7 @@ CCProgram sprite-fs %{
     
     // 添加边缘发光
     edge *= edgeBrightness; // 控制边缘亮度
-    mixedColor = mix(mixedColor, edgeColor, edge);
+    mixedColor = mix(mixedColor, edgeColor.rgb, edge);
     
     // 计算最终颜色
     vec4 finalColor = vec4(mixedColor, mix(nextScene.a, currentScene.a, mask));
@@ -132,4 +132,4 @@ CCProgram sprite-fs %{
     
     return finalColor;
   }
-}%
+}% 

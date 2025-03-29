@@ -5,7 +5,7 @@
   "__editorExtras__": {},
   "_native": "",
   "_effectAsset": {
-    "__uuid__": "785b6f78-d716-4510-95f8-0c4bbc86b9a7",
+    "__uuid__": "a126c248-3f30-4425-a3cb-94135c138353",
     "__expectedType__": "cc.EffectAsset"
   },
   "_techIdx": 0,
@@ -28,7 +28,17 @@
       "mainTexture": {
         "__uuid__": "cfc526c4-04c7-4888-a540-5436981501c2@6c48a",
         "__expectedType__": "cc.Texture2D"
-      }
+      },
+      "secondTexture": {
+        "__uuid__": "19961842-ce37-46b3-aef5-71bf36d1981c@6c48a",
+        "__expectedType__": "cc.Texture2D"
+      },
+      "progress": 1,
+      "waveCount": 6,
+      "waveAmplitude": 0.5,
+      "waveSpeed": 2.2,
+      "direction": 29,
+      "edgeColorR": 0
     }
   ]
 }

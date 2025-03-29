@@ -1,6 +1,7 @@
 CCEffect %{
   techniques:
-  - passes:
+  - name: transparent
+    passes:
     - vert: unlit-vs:vert
       frag: unlit-fs:frag
       blendState:
@@ -8,22 +9,28 @@ CCEffect %{
         - blend: true
           blendSrc: src_alpha
           blendDst: one_minus_src_alpha
-          blendDstAlpha: one_minus_src_alpha
       rasterizerState:
         cullMode: none
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
       properties:
-        mainTexture:    { value: white }
-        nextTexture:    { value: white }
-        progress:       { value: 0.0, editor: { type: vec2 } }
-        pixelSize:      { value: 1.0, editor: { type: vec2 } }
-        edgeWidth:      { value: 0.1, editor: { type: vec2 } }
-        edgeColor:      { value: [1.0, 1.0, 1.0], editor: { type: color } }
+        mainTexture: { value: white }
+        nextTexture: { value: white }
+        progress: { value: 0.0, editor: { type: float, range: [0, 1], slide: true } }
+        pixelSize: { value: 10.0, editor: { type: float, range: [1, 50], slide: true } }
+        direction: { value: 0.0, editor: { type: float, range: [0, 360], slide: true } }
+        edgeWidth: { value: 0.1, editor: { type: float, range: [0, 0.5], slide: true } }
+        edgeColor: { value: [1.0, 1.0, 1.0, 1.0], editor: { type: color } }
+        useAnimation: { value: 0.0, editor: { type: float, range: [0, 1], slide: true } }
+        animationSpeed: { value: 1.0, editor: { type: float, range: [0, 5], slide: true } }
+        pixelShape: { value: 0, editor: { type: int, range: [0, 3], slide: true } }
 }%
 
 CCProgram unlit-vs %{
   precision highp float;
-  #include <cc-global>
-  #include <cc-local>
+  #include <builtin/uniforms/cc-global>
+  #include <builtin/uniforms/cc-local>
 
   in vec3 a_position;
   in vec2 a_texCoord;
@@ -34,7 +41,8 @@ CCProgram unlit-vs %{
 
   vec4 vert () {
     vec4 pos = vec4(a_position, 1);
-    pos = cc_matViewProj * cc_matWorld * pos;
+    pos = cc_matWorld * pos;
+    pos = cc_matViewProj * pos;
     v_uv0 = a_texCoord;
     v_color = a_color;
     return pos;
@@ -43,8 +51,7 @@ CCProgram unlit-vs %{
 
 CCProgram unlit-fs %{
   precision highp float;
-  #include <cc-global>
-  #include <common>
+  #include <builtin/uniforms/cc-global>
 
   in vec2 v_uv0;
   in vec4 v_color;
@@ -54,30 +61,102 @@ CCProgram unlit-fs %{
   uniform Constant {
     float progress;
     float pixelSize;
+    float direction;
     float edgeWidth;
-    vec3 edgeColor;
+    vec4 edgeColor;
+    float useAnimation;
+    float animationSpeed;
+    int pixelShape;
   };
 
+  // 旋转UV坐标
+  vec2 rotateUV(vec2 uv, float angle) {
+    float rad = radians(angle);
+    float c = cos(rad);
+    float s = sin(rad);
+    vec2 center = vec2(0.5, 0.5);
+    vec2 offset = uv - center;
+    vec2 rotated = vec2(
+      offset.x * c - offset.y * s,
+      offset.x * s + offset.y * c
+    );
+    return rotated + center;
+  }
+
+  // 创建不同形状的像素
+  vec2 createPixelUV(vec2 uv, int shape) {
+    // 默认方形像素
+    vec2 pixelUV = floor(uv * pixelSize) / pixelSize;
+    
+    if (shape == 1) {
+      // 圆形像素
+      vec2 fractUV = fract(uv * pixelSize);
+      float dist = length(fractUV - vec2(0.5));
+      
+      if (dist < 0.4) {
+        return floor(uv * pixelSize) / pixelSize + vec2(0.5) / pixelSize;
+      } else {
+        return uv;
+      }
+    }
+    else if (shape == 2) {
+      // 菱形像素
+      vec2 fractUV = fract(uv * pixelSize);
+      float dist = abs(fractUV.x - 0.5) + abs(fractUV.y - 0.5);
+      
+      if (dist < 0.5) {
+        return floor(uv * pixelSize) / pixelSize + vec2(0.5) / pixelSize;
+      } else {
+        return uv;
+      }
+    }
+    else if (shape == 3) {
+      // 三角形像素
+      vec2 fractUV = fract(uv * pixelSize);
+      float dist = fractUV.x + fractUV.y;
+      
+      if (dist < 1.0 && fractUV.x > 0.1 && fractUV.y > 0.1) {
+        return floor(uv * pixelSize) / pixelSize + vec2(0.5) / pixelSize;
+      } else {
+        return uv;
+      }
+    }
+    
+    return pixelUV;
+  }
+
   vec4 frag () {
-    // 计算像素化UV
-    vec2 pixelatedUV = floor(v_uv0 * pixelSize) / pixelSize;
+    // 处理动画
+    float currentProgress = progress;
+    if (useAnimation > 0.5) {
+      currentProgress = mod(progress + cc_time.x * animationSpeed * 0.1, 1.0);
+    }
+    
+    // 旋转UV坐标
+    vec2 rotatedUV = rotateUV(v_uv0, direction);
+    
+    // 创建像素化UV
+    vec2 pixelatedUV = createPixelUV(rotatedUV, pixelShape);
     
     // 采样当前和下一个场景
     vec4 currentScene = texture(mainTexture, v_uv0);
     vec4 nextScene = texture(nextTexture, v_uv0);
     
     // 计算像素化遮罩
-    float mask = step(progress, pixelatedUV.x);
+    float mask = step(currentProgress, pixelatedUV.x);
     
     // 计算边缘
-    float edge = smoothstep(progress - edgeWidth, progress, pixelatedUV.x) -
-                 smoothstep(progress, progress + edgeWidth, pixelatedUV.x);
+    float edge = smoothstep(currentProgress - edgeWidth, currentProgress, pixelatedUV.x) -
+                 smoothstep(currentProgress, currentProgress + edgeWidth, pixelatedUV.x);
     
     // 混合场景
     vec4 finalColor = mix(currentScene, nextScene, mask);
     
     // 添加边缘发光
-    finalColor.rgb += edge * edgeColor;
+    finalColor.rgb = mix(finalColor.rgb, edgeColor.rgb, edge * edgeColor.a);
+    
+    // 应用顶点颜色
+    finalColor *= v_color;
     
     return finalColor;
   }
