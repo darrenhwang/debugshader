@@ -1,0 +1,61 @@
+CCEffect %{
+  techniques:
+  - name: transparent
+    passes:
+    - vert: sprite-vs:vert
+      frag: sprite-fs:frag
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+      properties:
+        mainTexture: { value: white }
+        progress: { value: 0.0, range: [0.0, 1.0] }
+}%
+
+CCProgram sprite-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  
+  in vec3 a_position;
+  in vec4 a_color;
+  in vec2 a_texCoord;
+  
+  out vec4 v_color;
+  out vec2 v_uv0;
+  
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matViewProj * pos;
+    
+    v_uv0 = a_texCoord;
+    // 预先设置一个颜色，而不使用额外的uniform
+    v_color = a_color * vec4(1.0, 1.0, 1.0, 1.0);
+    
+    return pos;
+  }
+}%
+
+CCProgram sprite-fs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  
+  in vec4 v_color;
+  in vec2 v_uv0;
+  
+  uniform sampler2D mainTexture;
+  
+  uniform Constant {
+    float progress;
+  };
+  
+  vec4 frag () {
+    vec4 color = texture(mainTexture, v_uv0) * v_color;
+    
+    // 简单的淡入淡出效果
+    color.a *= (1.0 - progress);
+    
+    return color;
+  }
+}%

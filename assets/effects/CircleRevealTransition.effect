@@ -1,0 +1,77 @@
+CCEffect %{
+  techniques:
+  - name: transparent
+    passes:
+    - vert: sprite-vs:vert
+      frag: sprite-fs:frag
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+      properties:
+        mainTexture: { value: white }
+        progress: { value: 0.5, range: [0.0, 1.0] }
+        centerX: { value: 0.5, range: [0.0, 1.0] }
+        centerY: { value: 0.5, range: [0.0, 1.0] }
+        smoothness: { value: 0.05, range: [0.01, 0.2] }
+        reverse: { value: 0, range: [0, 1] }
+}%
+
+CCProgram sprite-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  in vec4 a_color;
+  
+  out vec4 v_color;
+  out vec2 v_uv0;
+  
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matViewProj * pos;
+    
+    v_uv0 = a_texCoord;
+    v_color = a_color;
+    
+    return pos;
+  }
+}%
+
+CCProgram sprite-fs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  
+  in vec4 v_color;
+  in vec2 v_uv0;
+  
+  uniform sampler2D mainTexture;
+  
+  uniform Constant {
+    float progress;
+    float centerX;
+    float centerY;
+    float smoothness;
+    float reverse;
+  };
+  
+  vec4 frag () {
+    vec4 color = texture(mainTexture, v_uv0) * v_color;
+    
+    // 极简圆形效果 - 使用固定中心点(0.5, 0.5)
+    float dist = distance(v_uv0, vec2(centerX, centerY));
+    
+    // 简单的阈值处理
+    float mask;
+    if (reverse > 0.5) {
+      mask = 1.0 - smoothstep(progress - smoothness, progress, dist);
+    } else {
+      mask = smoothstep(progress - smoothness, progress, dist);
+    }
+    color.a *= mask;
+    
+    return color;
+  }
+}%
