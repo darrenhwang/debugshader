@@ -1,0 +1,119 @@
+CCEffect %{
+  techniques:
+  - name: transparent
+    passes:
+    - vert: sprite-vs:vert
+      frag: sprite-fs:frag
+      rasterizerState:
+        cullMode: none
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendSrcAlpha: src_alpha
+          blendDstAlpha: one_minus_src_alpha
+      properties:
+        mainTexture:    { value: white }
+        startColor:     { value: [1, 0, 0, 1], editor: { type: color } }
+        endColor:       { value: [0, 0, 1, 1], editor: { type: color } }
+        outlineColor:   { value: [0, 0, 0, 1], editor: { type: color } }
+        isHorizontal:   { value: 1, editor: { type: int, range: [0, 1], step: 1 } }
+        outlineWidth:   { value: 0.03, editor: { type: float, range: [0.0, 0.1], slide: true } }
+        brightness:     { value: 1.0, editor: { type: float, range: [0.5, 2.0], slide: true } }
+}%
+
+CCProgram sprite-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  #include <builtin/uniforms/cc-local>
+  
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  in vec4 a_color;
+  
+  out vec2 v_uv0;
+  out vec4 v_color;
+  
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matWorld * pos;
+    pos = cc_matViewProj * pos;
+    v_uv0 = a_texCoord;
+    v_color = a_color;
+    return pos;
+  }
+}%
+
+CCProgram sprite-fs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  
+  in vec2 v_uv0;
+  in vec4 v_color;
+  
+  uniform sampler2D mainTexture;
+  
+  uniform FSBlock {
+    vec4 startColor;
+    vec4 endColor;
+    vec4 outlineColor;
+    int isHorizontal;
+    float outlineWidth;
+    float brightness;
+  };
+  
+  vec4 frag () {
+    // 获取系统字体的alpha通道
+    vec4 texColor = texture(mainTexture, v_uv0);
+    float textAlpha = texColor.a * v_color.a;
+    
+    // 判断该像素是否位于文本中（透明度阈值）
+    bool isText = textAlpha > 0.01;
+    
+    // 计算渐变系数
+    float t = isHorizontal > 0 ? v_uv0.x : v_uv0.y;
+    t = clamp(t, 0.0, 1.0);
+    
+    // 计算渐变色
+    vec4 gradientColor = mix(startColor, endColor, t);
+    
+    // 应用亮度
+    gradientColor.rgb *= brightness;
+    
+    // 创建最终颜色
+    vec4 finalColor;
+    
+    if (isText) {
+      // 文本内部使用渐变色
+      finalColor = vec4(gradientColor.rgb, textAlpha);
+      
+      // 如果启用了描边，检查周围像素
+      if (outlineWidth > 0.0) {
+        // 采样周围像素
+        float pixelWidth = outlineWidth * 0.01;
+        
+        // 采样4个相邻像素
+        float a1 = texture(mainTexture, v_uv0 + vec2(pixelWidth, 0.0)).a;
+        float a2 = texture(mainTexture, v_uv0 + vec2(-pixelWidth, 0.0)).a;
+        float a3 = texture(mainTexture, v_uv0 + vec2(0.0, pixelWidth)).a;
+        float a4 = texture(mainTexture, v_uv0 + vec2(0.0, -pixelWidth)).a;
+        
+        // 计算边缘强度
+        float maxAlpha = max(max(a1, a2), max(a3, a4));
+        float outline = max(0.0, maxAlpha - texColor.a) * v_color.a;
+        
+        // 混合描边颜色
+        finalColor = mix(finalColor, vec4(outlineColor.rgb, textAlpha), outline);
+      }
+    } else {
+      // 非文本区域完全透明
+      finalColor = vec4(0.0, 0.0, 0.0, 0.0);
+    }
+    
+    return finalColor;
+  }
+}% 

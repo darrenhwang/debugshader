@@ -5,7 +5,7 @@
   "__editorExtras__": {},
   "_native": "",
   "_effectAsset": {
-    "__uuid__": "75199e93-f62c-4299-a472-1033bacf4e54",
+    "__uuid__": "c58031c9-e687-4f4d-a2d0-d3173571319b",
     "__expectedType__": "cc.EffectAsset"
   },
   "_techIdx": 0,
@@ -26,12 +26,21 @@
   "_props": [
     {
       "startColor": {
-        "__type__": "cc.Vec4",
-        "x": 1,
-        "y": 1,
-        "z": 1,
-        "w": 1
-      }
+        "__type__": "cc.Color",
+        "r": 221,
+        "g": 197,
+        "b": 72,
+        "a": 255
+      },
+      "endColor": {
+        "__type__": "cc.Color",
+        "r": 10,
+        "g": 255,
+        "b": 0,
+        "a": 255
+      },
+      "outlineWidth": 0.1,
+      "brightness": 1.4
     }
   ]
 }
