@@ -72,36 +72,10 @@ export class TextToRenderTexture extends Component {
 ```
 
 #### 系统字体
-- 对于系统字体，建议使用专门的`SystemFontGradient.effect`着色器
-- 如果必须使用此着色器，请确保设置`preserveOriginal`为1
+- 与TTF字体相同，可以直接应用或使用RenderTexture方法
+- 确保Label组件颜色设置为白色（#FFFFFF）
 
-## 三、故障排除
-
-### 1. 无法正常挂载问题解决
-如果遇到着色器无法正常挂载的问题，请尝试以下步骤：
-
-1. **检查Label设置**：
-   - 确保Label组件的颜色设置为白色（#FFFFFF）
-   - 对于系统字体，字体大小建议设置在24-36pt之间
-
-2. **渲染组件检查**：
-   - 确认渲染组件类型是Label而非RichText
-   - 如使用系统字体，尝试切换到`SystemFontGradient.effect`
-
-3. **着色器参数调整**：
-   - 设置`alphaThreshold`为较低值（如0.01）
-   - 将`preserveOriginal`设置为1
-   - 增加`colorIntensity`到1.5以上
-
-4. **纹理问题**：
-   - 如果使用自定义字体，确保字体文件已正确加载
-   - 检查mainTexture是否正确引用（默认为white）
-
-5. **替代方案**：
-   - 对于系统字体，使用专用的`SystemFontGradient.effect`
-   - 尝试将字体渲染到纹理后再应用效果
-
-### 2. 参数说明
+### 3. 参数说明
 
 #### 基础参数
 - `startColor`：渐变起始颜色
@@ -135,16 +109,6 @@ export class TextToRenderTexture extends Component {
   - 默认值：1.0
   - 说明：控制渐变颜色的亮度，值越大颜色越亮
 
-- `preserveOriginal`：保留原始颜色
-  - 范围：0 或 1
-  - 默认值：0
-  - 说明：设置为1时会尝试保留原始文本的颜色细节，对系统字体很重要
-
-- `alphaThreshold`：透明度阈值
-  - 范围：0.0 - 0.2
-  - 默认值：0.01
-  - 说明：低于此值的像素将被丢弃，调低可显示更多细节
-
 #### 描边参数
 - `outlineColor`：描边颜色
   - 类型：颜色
@@ -156,7 +120,7 @@ export class TextToRenderTexture extends Component {
   - 默认值：0.0
   - 说明：文本描边的宽度，0表示无描边
 
-## 四、效果预设
+## 三、效果预设
 
 ### 1. 经典红蓝渐变
 ```json
@@ -167,9 +131,7 @@ export class TextToRenderTexture extends Component {
   "gradientOffset": 0.0,
   "gradientScale": 1.0,
   "colorIntensity": 1.0,
-  "outlineWidth": 0.0,
-  "preserveOriginal": 0,
-  "alphaThreshold": 0.01
+  "outlineWidth": 0.0
 }
 ```
 
@@ -183,9 +145,7 @@ export class TextToRenderTexture extends Component {
   "gradientScale": 1.2,
   "colorIntensity": 1.3,
   "outlineColor": [0.3, 0.2, 0.0, 1.0],
-  "outlineWidth": 0.03,
-  "preserveOriginal": 0,
-  "alphaThreshold": 0.01
+  "outlineWidth": 0.03
 }
 ```
 
@@ -198,9 +158,7 @@ export class TextToRenderTexture extends Component {
   "gradientOffset": 0.0,
   "gradientScale": 0.5,
   "colorIntensity": 1.5,
-  "outlineWidth": 0.0,
-  "preserveOriginal": 0,
-  "alphaThreshold": 0.01
+  "outlineWidth": 0.0
 }
 ```
 
@@ -214,13 +172,11 @@ export class TextToRenderTexture extends Component {
   "gradientScale": 0.8,
   "colorIntensity": 1.8,
   "outlineColor": [0.0, 0.0, 0.0, 0.8],
-  "outlineWidth": 0.02,
-  "preserveOriginal": 0,
-  "alphaThreshold": 0.01
+  "outlineWidth": 0.02
 }
 ```
 
-### 5. 系统字体专用预设
+### 5. 游戏数值显示
 ```json
 {
   "startColor": [0.8, 1.0, 0.2, 1.0],
@@ -228,15 +184,13 @@ export class TextToRenderTexture extends Component {
   "isHorizontal": 1,
   "gradientOffset": 0.0,
   "gradientScale": 1.0,
-  "colorIntensity": 1.6,
+  "colorIntensity": 1.2,
   "outlineColor": [0.0, 0.2, 0.0, 1.0],
-  "outlineWidth": 0.04,
-  "preserveOriginal": 1,
-  "alphaThreshold": 0.005
+  "outlineWidth": 0.04
 }
 ```
 
-## 五、使用场景
+## 四、使用场景
 
 ### 1. UI标题
 - 使用对比度高的渐变色
@@ -261,7 +215,7 @@ export class TextToRenderTexture extends Component {
 - 可以使用描边让数字在复杂背景上清晰可见
 - 根据数值类型使用不同的颜色方案
 
-## 六、动画实现示例
+## 五、动画实现示例
 
 ### 1. 呼吸效果
 ```typescript
@@ -322,7 +276,7 @@ tween(material)
     .start();
 ```
 
-## 七、注意事项
+## 六、注意事项
 
 ### 1. 性能优化
 - 渐变文本效果一般不会造成性能问题，可放心使用
@@ -333,19 +287,17 @@ tween(material)
 - 确保目标平台支持自定义着色器
 - 在低端设备上测试性能表现
 - 不同字体类型可能需要不同的处理方式
-- 系统字体可能需要使用专用的SystemFontGradient.effect
 
 ### 3. 常见问题解决
 - 如果文本不显示：检查Label组件的颜色是否为白色，确保文本本身可见
 - 如果渐变不明显：增加起始颜色和结束颜色的对比度，或调整颜色强度
 - 如果边缘模糊：确保文本的原始纹理清晰，可能需要调整字体大小
 - 如果描边效果不明显：适当增加描边宽度，或调整描边颜色与文本颜色的对比度
-- 系统字体问题：使用专用的SystemFontGradient.effect或尝试将preserveOriginal设为1
+- 系统字体或TTF字体问题：尝试转换为RenderTexture再应用效果
 
 ### 4. 最佳实践
 - 为不同场景预设多个渐变效果材质
 - 根据背景颜色选择合适的渐变色组合
 - 与UI主题风格保持一致
 - 避免使用过于复杂的渐变，保持易读性
-- 描边宽度不宜过大，会影响文本清晰度
-- 系统字体建议使用专用的SystemFontGradient.effect 
+- 描边宽度不宜过大，会影响文本清晰度 

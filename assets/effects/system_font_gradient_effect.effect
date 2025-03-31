@@ -1,0 +1,130 @@
+// Copyright (c) 2017-2020 Xiamen Yaji Software Co., Ltd.
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: sprite-vs:vert
+      frag: sprite-fs:frag
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendDstAlpha: one_minus_src_alpha
+      rasterizerState:
+        cullMode: none
+      properties:
+        alphaThreshold: { value: 0.5 }
+        # 自定义渐变颜色
+        startColor: { 
+          value: [1.0, 0.0, 0.0, 1.0], 
+          editor: { 
+            type: color,
+            tooltip: "渐变起始颜色" 
+          }
+        }
+        endColor: { 
+          value: [0.0, 0.0, 1.0, 1.0], 
+          editor: { 
+            type: color,
+            tooltip: "渐变结束颜色" 
+          }
+        }
+        outlineColor: { 
+          value: [0.0, 0.0, 0.0, 1.0], 
+          editor: { 
+            type: color,
+            tooltip: "轮廓颜色" 
+          }
+        }
+        isHorizontal: { 
+          value: 1.0, 
+          editor: { 
+            type: number,
+            range: [0, 1, 1],
+            tooltip: "是否水平渐变 (0: 垂直, 1: 水平)" 
+          }
+        }
+        outlineWidth: { 
+          value: 0.03, 
+          editor: { 
+            type: number,
+            range: [0.0, 1.0, 0.01],
+            tooltip: "轮廓宽度" 
+          }
+        }
+        brightness: { 
+          value: 1.0, 
+          editor: { 
+            type: number,
+            range: [0.0, 2.0, 0.1],
+            tooltip: "亮度" 
+          }
+        }
+}%
+
+CCProgram sprite-vs %{
+  precision highp float;
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  in vec4 a_color;
+
+  out vec4 v_color;
+  out vec2 v_uv0;
+
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matViewProj * pos;
+    v_uv0 = a_texCoord;
+    v_color = a_color;
+    return pos;
+  }
+}%
+
+CCProgram sprite-fs %{
+  precision highp float;
+  #include <cc-global>
+  #include <alpha-test>
+
+  in vec4 v_color;
+  in vec2 v_uv0;
+
+  uniform Constant {
+    vec4 startColor;
+    vec4 endColor;
+    vec4 outlineColor;
+    float isHorizontal;
+    float outlineWidth;
+    float brightness;
+  };
+
+  uniform sampler2D cc_spriteTexture;
+
+  vec4 frag () {
+    vec4 texColor = texture(cc_spriteTexture, v_uv0);
+    
+    // 计算渐变系数
+    float gradFactor = isHorizontal > 0.5 ? v_uv0.x : v_uv0.y;
+    
+    // 混合渐变色
+    vec4 gradColor = mix(startColor, endColor, gradFactor);
+    
+    // 添加轮廓效果
+    float alpha = texColor.a;
+    float outline = smoothstep(outlineWidth, outlineWidth * 1.2, alpha);
+    vec4 finalColor = mix(outlineColor, gradColor, outline);
+    
+    // 设置透明度和亮度
+    finalColor.a = alpha;
+    finalColor.rgb *= brightness;
+    
+    // 应用alpha测试
+    ALPHA_TEST(finalColor);
+    return finalColor;
+  }
+}% 

@@ -18,14 +18,22 @@ CCEffect %{
           blendDstAlpha: one_minus_src_alpha
       properties:
         mainTexture: { value: white }
-        startColor: { value: [1, 0, 0, 1] }
-        endColor: { value: [0, 0, 1, 1] }
-        isHorizontal: { value: 1 }
+        startColor: { value: [1, 0, 0, 1], editor: { type: color } }
+        endColor: { value: [0, 0, 1, 1], editor: { type: color } }
+        outlineColor: { value: [0, 0, 0, 1], editor: { type: color } }
+        isHorizontal: { value: 1, editor: { type: int, range: [0, 1], step: 1 } }
+        preserveOriginal: { value: 0, editor: { type: int, range: [0, 1], step: 1 } }
+        gradientOffset: { value: 0.0, editor: { type: float, range: [-0.5, 0.5], slide: true } }
+        gradientScale: { value: 1.0, editor: { type: float, range: [0.1, 2.0], slide: true } }
+        colorIntensity: { value: 1.0, editor: { type: float, range: [0.0, 2.0], slide: true } }
+        outlineWidth: { value: 0.0, editor: { type: float, range: [0.0, 0.1], slide: true } }
+        alphaThreshold: { value: 0.01, editor: { type: float, range: [0.0, 0.2], slide: true } }
 }%
 
 CCProgram sprite-vs %{
   precision highp float;
   #include <builtin/uniforms/cc-global>
+  #include <builtin/uniforms/cc-local>
   
   in vec3 a_position;
   in vec2 a_texCoord;
@@ -36,6 +44,7 @@ CCProgram sprite-vs %{
   
   vec4 vert () {
     vec4 pos = vec4(a_position, 1);
+    pos = cc_matWorld * pos;
     pos = cc_matViewProj * pos;
     v_uv0 = a_texCoord;
     v_color = a_color;
@@ -55,24 +64,89 @@ CCProgram sprite-fs %{
   uniform Constant {
     vec4 startColor;
     vec4 endColor;
+    vec4 outlineColor;
     int isHorizontal;
+    int preserveOriginal;
+    float gradientOffset;
+    float gradientScale;
+    float colorIntensity;
+    float outlineWidth;
+    float alphaThreshold;
   };
+  
+  // 采样周围像素用于描边
+  float sampleAlpha(sampler2D tex, vec2 uv) {
+    return texture(tex, uv).a;
+  }
   
   vec4 frag () {
     // 采样原始纹理
     vec4 texColor = texture(mainTexture, v_uv0);
     
-    // 如果纹理完全透明，丢弃片段
-    if(texColor.a < 0.01) {
+    // 如果透明度低于阈值，直接丢弃
+    if (texColor.a < alphaThreshold) {
       discard;
     }
     
+    // 如果启用描边且当前像素周围有内容但当前像素透明
+    float outline = 0.0;
+    if (outlineWidth > 0.0) {
+      float pixelWidth = outlineWidth * 0.01;
+      
+      // 对周围8个方向进行采样
+      float a1 = sampleAlpha(mainTexture, v_uv0 + vec2(pixelWidth, 0.0));
+      float a2 = sampleAlpha(mainTexture, v_uv0 + vec2(-pixelWidth, 0.0));
+      float a3 = sampleAlpha(mainTexture, v_uv0 + vec2(0.0, pixelWidth));
+      float a4 = sampleAlpha(mainTexture, v_uv0 + vec2(0.0, -pixelWidth));
+      float a5 = sampleAlpha(mainTexture, v_uv0 + vec2(pixelWidth, pixelWidth));
+      float a6 = sampleAlpha(mainTexture, v_uv0 + vec2(-pixelWidth, pixelWidth));
+      float a7 = sampleAlpha(mainTexture, v_uv0 + vec2(pixelWidth, -pixelWidth));
+      float a8 = sampleAlpha(mainTexture, v_uv0 + vec2(-pixelWidth, -pixelWidth));
+      
+      // 周围有内容但当前像素透明则认为是边缘
+      float maxAlpha = max(max(max(a1, a2), max(a3, a4)), max(max(a5, a6), max(a7, a8)));
+      outline = max(0.0, maxAlpha - texColor.a);
+    }
+    
+    // 计算调整后的渐变系数
+    float t;
+    if (isHorizontal > 0) {
+      t = (v_uv0.x - 0.5) * gradientScale + 0.5 + gradientOffset;
+    } else {
+      t = (v_uv0.y - 0.5) * gradientScale + 0.5 + gradientOffset;
+    }
+    t = clamp(t, 0.0, 1.0);
+    
     // 计算渐变色
-    float t = isHorizontal > 0 ? v_uv0.x : v_uv0.y;
     vec4 gradient = mix(startColor, endColor, t);
     
-    // 使用文本的alpha通道和渐变色
-    // 关键点：只替换RGB部分，alpha保持原样
-    return vec4(gradient.rgb, texColor.a * v_color.a);
+    // 应用颜色强度
+    gradient.rgb *= colorIntensity;
+    
+    // 混合渐变色和文本颜色
+    vec4 mainColor;
+    if (preserveOriginal > 0) {
+      // 保留原始颜色，只在透明区域应用渐变
+      mainColor = vec4(mix(gradient.rgb, texColor.rgb, step(0.5, length(texColor.rgb))), texColor.a);
+    } else {
+      // 完全用渐变色替换原色
+      mainColor = vec4(gradient.rgb, texColor.a);
+    }
+    
+    // 如果有描边，混合描边颜色
+    vec4 finalColor;
+    if (outline > 0.0) {
+      finalColor = mix(mainColor, outlineColor, outline);
+    } else {
+      finalColor = mainColor;
+    }
+    
+    // 应用透明度和颜色（主要用于兼容Label组件的颜色设置）
+    finalColor.a *= v_color.a;
+    
+    // 与顶点颜色混合（这对系统字体特别重要）
+    finalColor.rgb *= v_color.rgb;
+    
+    return finalColor;
   }
 }% 
