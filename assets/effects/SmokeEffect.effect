@@ -1,0 +1,137 @@
+CCEffect %{
+  techniques:
+  - name: transparent
+    passes:
+    - vert: unlit-vs:vert
+      frag: unlit-fs:frag
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+      rasterizerState:
+        cullMode: none
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
+      properties:
+        mainTexture: { value: white }
+        noiseTexture: { value: white }
+        baseColor: { value: [0.3, 0.3, 0.3, 1.0], editor: { type: color } }
+        tipColor: { value: [0.7, 0.7, 0.7, 1.0], editor: { type: color } }
+        innerColor: { value: [0.5, 0.5, 0.5, 1.0], editor: { type: color } }
+        outerColor: { value: [0.2, 0.2, 0.2, 1.0], editor: { type: color } }
+        driftColor: { value: [0.4, 0.4, 0.4, 1.0], editor: { type: color } }
+        gradientStrength: { value: 1.0, editor: { type: float, range: [0.0, 2.0], slide: true } }
+        waveSpeed: { value: 0.5, editor: { type: float, range: [0.0, 5.0], slide: true } }
+        waveScale: { value: 0.5, editor: { type: float, range: [0.0, 2.0], slide: true } }
+        distortionStrength: { value: 0.05, editor: { type: float, range: [0.0, 0.5], slide: true } }
+        innerSmokeScale: { value: 0.6, editor: { type: float, range: [0.0, 1.0], slide: true } }
+        noiseScale: { value: 0.5, editor: { type: float, range: [0.1, 5.0], slide: true } }
+        noiseSpeed: { value: 0.2, editor: { type: float, range: [0.0, 2.0], slide: true } }
+        driftSpeed: { value: 0.3, editor: { type: float, range: [0.0, 2.0], slide: true } }
+        driftScale: { value: 0.1, editor: { type: float, range: [0.0, 1.0], slide: true } }
+}%
+
+CCProgram unlit-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  #include <builtin/uniforms/cc-local>
+
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  in vec4 a_color;
+
+  out vec2 v_uv0;
+  out vec4 v_color;
+
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matWorld * pos;
+    pos = cc_matViewProj * pos;
+    v_uv0 = a_texCoord;
+    v_color = a_color;
+    return pos;
+  }
+}%
+
+CCProgram unlit-fs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+
+  in vec2 v_uv0;
+  in vec4 v_color;
+
+  uniform sampler2D mainTexture;
+  uniform sampler2D noiseTexture;
+  uniform Constant {
+    vec4 baseColor;
+    vec4 tipColor;
+    vec4 innerColor;
+    vec4 outerColor;
+    vec4 driftColor;
+    float gradientStrength;
+    float waveSpeed;
+    float waveScale;
+    float distortionStrength;
+    float innerSmokeScale;
+    float noiseScale;
+    float noiseSpeed;
+    float driftSpeed;
+    float driftScale;
+  };
+
+  // 优化的噪声函数
+  float noise(vec2 uv) {
+    return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
+  }
+
+  // 优化的噪声纹理采样
+  float sampleNoise(vec2 uv, float time) {
+    vec2 noiseUV = uv * noiseScale + vec2(time * noiseSpeed, 0.0);
+    return texture(noiseTexture, noiseUV).r;
+  }
+
+  vec4 frag () {
+    float time = cc_time.x * waveSpeed;
+    float driftTime = cc_time.x * driftSpeed;
+    
+    // 优化的扭曲计算
+    vec2 distortedUV = v_uv0;
+    float noiseVal = sampleNoise(v_uv0, time);
+    float noiseVal2 = noise(v_uv0 * 5.0 + time);
+    float distortionX = sin(v_uv0.y * 4.0 + time) * distortionStrength;
+    float distortionY = cos(v_uv0.x * 3.0 + time) * distortionStrength;
+    distortedUV += vec2(distortionX * noiseVal, distortionY * noiseVal2);
+    
+    vec4 o = texture(mainTexture, distortedUV);
+    o *= v_color;
+    
+    // 优化的渐变计算
+    float gradient = 1.0 - v_uv0.y;
+    gradient = pow(gradient, gradientStrength);
+    
+    // 优化的波浪动画
+    float wave = sin(v_uv0.y * 5.0 + time) * 0.05 * waveScale;
+    
+    // 优化的内层和外层烟雾计算
+    float innerGradient = smoothstep(0.0, innerSmokeScale, gradient);
+    float outerGradient = smoothstep(innerSmokeScale, 1.0, gradient);
+    
+    // 优化的颜色混合
+    vec4 innerSmoke = mix(innerColor, tipColor, innerGradient);
+    vec4 outerSmoke = mix(baseColor, outerColor, outerGradient);
+    vec4 smokeColor = mix(outerSmoke, innerSmoke, innerGradient);
+    
+    // 优化的扩散效果
+    float drift = sin(driftTime + v_uv0.x * 10.0) * 0.5 + 0.5;
+    smokeColor = mix(smokeColor, driftColor, drift * driftScale);
+    
+    // 优化的透明度计算
+    float alpha = smokeColor.a * (gradient + wave) * (0.7 + noiseVal * 0.3);
+    o.rgb = smokeColor.rgb;
+    o.a *= alpha;
+    
+    return o;
+  }
+}% 

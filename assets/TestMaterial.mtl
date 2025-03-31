@@ -5,7 +5,7 @@
   "__editorExtras__": {},
   "_native": "",
   "_effectAsset": {
-    "__uuid__": "addddfbe-aceb-4dc4-97d8-63e0efe19293",
+    "__uuid__": "cf9ce54d-d5f4-4666-a660-4bc4bf9b7c4e",
     "__expectedType__": "cc.EffectAsset"
   },
   "_techIdx": 0,
@@ -29,7 +29,10 @@
         "__uuid__": "cfc526c4-04c7-4888-a540-5436981501c2@6c48a",
         "__expectedType__": "cc.Texture2D"
       },
-      "progress": -0.1
+      "waveSpeed": 3,
+      "waveScale": 0.8,
+      "distortionStrength": 0.5,
+      "innerFlameScale": 0.7
     }
   ]
 }
